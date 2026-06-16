@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>盆栽 · Rarity Checker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --paper: #f0ebe0; --moss: #3d5a3e; --moss-l: #5a8c5b;
+      --stone: #7a7870; --stone-l: #b0ab9e; --gold: #c9a84c;
+      --bg: #0b0b08; --bg2: #131310; --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--paper); font-family: 'EB Garamond', Georgia, serif; min-height: 100vh; overflow-x: hidden; }
+
+    /* HEADER */
+    header { position: sticky; top: 0; z-index: 100; padding: 13px 20px; background: rgba(11,11,8,0.96); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .h-left { display: flex; align-items: center; gap: 12px; }
+    .h-kanji { font-size: 18px; color: var(--moss-l); }
+    .h-title { font-size: 15px; letter-spacing: 0.03em; }
+    .h-title em { font-style: italic; color: var(--moss-l); }
+    .h-badge { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.15em; color: var(--stone); text-transform: uppercase; border: 1px solid var(--border2); border-radius: 2px; padding: 3px 7px; white-space: nowrap; }
+
+    /* TABS */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 47px; z-index: 90; overflow-x: auto; }
+    .tab { flex-shrink: 0; padding: 12px 16px; font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--stone); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
+    .tab.active { color: var(--moss-l); border-bottom-color: var(--moss-l); }
+    .tab:hover:not(.active) { color: var(--stone-l); }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── SHARED COMPONENTS ── */
+    .status-text { font-style: italic; color: var(--stone); font-size: 15px; text-align: center; padding: 20px; }
+    .status-text.err { font-style: normal; font-family: 'Space Mono', monospace; font-size: 11px; color: #c97a7a; }
+    .prog-wrap { max-width: 200px; margin: 10px auto; height: 1px; background: rgba(255,255,255,0.08); }
+    .prog-bar { height: 100%; background: var(--moss-l); transition: width 0.3s; width: 0%; }
+    .section-wrap { max-width: 820px; margin: 0 auto; padding: 24px 16px 80px; }
+
+    /* ── PAGE 1: MARKETPLACE ── */
+    .mkt-hero { position: relative; min-height: 340px; display: flex; align-items: flex-end; overflow: hidden; border-bottom: 1px solid var(--border); }
+    .nft-mosaic { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; } @media(min-width:700px) { .nft-mosaic { grid-template-columns: repeat(9, 1fr); } }
+    .mosaic-cell { aspect-ratio: 1; background: #0d0d0a; overflow: hidden; }
+    .mosaic-cell img { width: 100%; height: 100%; object-fit: cover; image-rendering: auto; display: block; opacity: 0; transition: opacity 0.5s; }
+    .mosaic-cell img.loaded { opacity: 1; }
+    .mosaic-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(11,11,8,1) 0%, rgba(11,11,8,0.8) 30%, rgba(11,11,8,0.1) 100%); }
+    .mkt-hero-content { position: relative; z-index: 2; padding: 28px 20px 36px; max-width: 820px; margin: 0 auto; width: 100%; }
+    .hero-tag { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: var(--moss-l); text-transform: uppercase; margin-bottom: 8px; display: block; }
+    .hero-h1 { font-size: clamp(28px, 6vw, 44px); font-weight: 400; line-height: 1.1; margin-bottom: 6px; }
+    .hero-h1 em { font-style: italic; color: var(--moss-l); }
+    .hero-sub { font-size: 15px; color: var(--stone-l); font-style: italic; line-height: 1.6; }
+
+    /* FILTER BAR */
+    .filter-bar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; max-width: 100%; overflow-x: auto; }
+    .filter-bar select, .filter-bar input[type=range] { background: rgba(255,255,255,0.05); border: 1px solid var(--border2); border-radius: 2px; color: var(--paper); font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.05em; padding: 7px 10px; outline: none; cursor: pointer; }
+    .filter-bar select option { background: #1a1a14; }
+    .filter-label { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--stone); white-space: nowrap; }
+    .filter-group { display: flex; flex-direction: column; gap: 3px; }
+    .filter-reset { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--stone); background: none; border: 1px solid var(--border2); border-radius: 2px; padding: 6px 10px; cursor: pointer; transition: all 0.2s; }
+    .filter-reset:hover { color: var(--paper); }
+    .load-btn { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper); background: var(--moss); border: none; border-radius: 2px; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+    .load-btn:hover { background: var(--moss-l); }
+    .load-btn:disabled { background: #1e1e1a; color: var(--stone); cursor: not-allowed; }
+    .results-count { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--stone); white-space: nowrap; margin-left: auto; }
+
+    /* LISTING GRID */
+    .listing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
+    @media(min-width: 500px) { .listing-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media(min-width: 700px) { .listing-grid { grid-template-columns: repeat(4, 1fr); } }
+
+    .listing-card { border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.02); border: 1px solid var(--border); cursor: pointer; transition: border-color 0.2s, transform 0.15s; position: relative; }
+    .listing-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+    .listing-card:active { transform: scale(0.97); }
+    .listing-card.named { border-color: rgba(201,168,76,0.3); background: rgba(201,168,76,0.03); }
+    .lc-img { aspect-ratio: 1; background: #090907; overflow: hidden; position: relative; }
+    .lc-img img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+    .lc-rank { position: absolute; top: 6px; left: 6px; font-family: 'Space Mono', monospace; font-size: 9px; background: rgba(9,9,7,0.9); backdrop-filter: blur(4px); padding: 2px 6px; border-radius: 2px; }
+    .lc-named { position: absolute; top: 6px; right: 6px; font-size: 12px; }
+    .lc-body { padding: 9px 11px 11px; }
+    .lc-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lc-price { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--paper); font-weight: 700; margin-bottom: 3px; }
+    .lc-score { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--stone); }
+    .lc-rarity-bar { height: 2px; margin-top: 7px; border-radius: 1px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .lc-rarity-fill { height: 100%; border-radius: 1px; }
+
+    /* load more */
+    .load-more { width: 100%; margin-top: 16px; padding: 13px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 3px; color: var(--stone); font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+    .load-more:hover { background: rgba(255,255,255,0.06); color: var(--stone-l); }
+
+    /* ── PAGE 2: HOLDER ── */
+    .holder-hero { position: relative; min-height: 340px; display: flex; align-items: flex-end; overflow: hidden; border-bottom: 1px solid var(--border); }
+    .holder-hero-content { position: relative; z-index: 2; padding: 28px 20px 36px; max-width: 820px; margin: 0 auto; width: 100%; }
+    .search-box { position: relative; max-width: 460px; }
+    .search-box input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border2); border-radius: 3px; padding: 13px 100px 13px 16px; color: var(--paper); font-size: 12px; font-family: 'Space Mono', monospace; outline: none; transition: border-color 0.2s; }
+    .search-box input:focus { border-color: var(--moss-l); }
+    .search-box input::placeholder { font-family: 'EB Garamond', serif; font-size: 15px; font-style: italic; color: var(--stone); letter-spacing: 0; }
+    .search-box button { position: absolute; right: 5px; top: 5px; bottom: 5px; background: var(--moss); color: var(--paper); border: none; border-radius: 2px; padding: 0 16px; font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
+    .search-box button:hover { background: var(--moss-l); }
+    .search-box button:disabled { background: #1e1e1a; color: var(--stone); cursor: not-allowed; }
+    .bonsai-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    @media(min-width: 440px) { .bonsai-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media(min-width: 700px) { .bonsai-grid { grid-template-columns: repeat(4, 1fr); } }
+
+    /* ── PAGE 3: GLOBAL ── */
+    .global-intro { text-align: center; padding: 48px 20px 36px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+    .global-intro h2 { font-size: 28px; font-weight: 400; margin-bottom: 8px; }
+    .global-intro h2 em { font-style: italic; color: var(--moss-l); }
+    .global-intro p { font-size: 15px; color: var(--stone-l); font-style: italic; line-height: 1.6; margin-bottom: 24px; }
+    .action-btn { background: var(--moss); color: var(--paper); border: none; border-radius: 3px; padding: 13px 28px; font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: background 0.2s; }
+    .action-btn:hover { background: var(--moss-l); }
+    .action-btn:disabled { background: #1e1e1a; color: var(--stone); cursor: not-allowed; }
+    .global-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; border-radius: 2px; }
+    .global-row:hover { background: rgba(255,255,255,0.02); }
+    .g-rank { font-family: 'Space Mono', monospace; font-size: 11px; width: 42px; flex-shrink: 0; text-align: right; }
+    .g-img { width: 44px; height: 44px; flex-shrink: 0; background: #090907; border-radius: 2px; overflow: hidden; }
+    .g-img img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; display: block; }
+    .g-info { flex: 1; min-width: 0; }
+    .g-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .g-score { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--stone); margin-top: 2px; }
+    .g-right { flex-shrink: 0; text-align: right; }
+    .g-rarity { font-family: 'Space Mono', monospace; font-size: 9px; padding: 2px 7px; border-radius: 2px; }
+
+    /* ── DETAIL OVERLAY ── */
+    .overlay { position: fixed; inset: 0; background: var(--bg); z-index: 200; overflow-y: auto; display: none; opacity: 0; transition: opacity 0.22s; }
+    .overlay.open { display: block; }
+    .overlay.vis { opacity: 1; }
+    .ov-header { position: sticky; top: 0; z-index: 10; background: rgba(11,11,8,0.96); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 12px 18px; display: flex; align-items: center; gap: 14px; }
+    .back-btn { background: none; border: 1px solid var(--border2); color: var(--stone-l); border-radius: 2px; padding: 6px 12px; font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+    .back-btn:hover { color: var(--paper); }
+    .ov-title { font-size: 15px; font-style: italic; }
+    .ov-body { max-width: 620px; margin: 0 auto; padding: 0 18px 80px; }
+    .ov-hero { display: flex; border-bottom: 1px solid var(--border); }
+    .ov-img { width: 130px; height: 130px; flex-shrink: 0; background: #090907; }
+    .ov-img img { width: 130px; height: 130px; object-fit: cover; image-rendering: pixelated; display: block; }
+    .ov-info { padding: 18px 18px 18px 20px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+    .ov-name { font-size: 22px; font-style: italic; line-height: 1.2; }
+    .ov-id { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--stone); letter-spacing: 0.06em; }
+    .named-bdg { display: inline-block; font-family: 'Space Mono', monospace; font-size: 8px; color: var(--gold); border: 1px solid var(--gold); border-radius: 2px; padding: 3px 7px; letter-spacing: 0.1em; width: fit-content; }
+    .os-btn { display: inline-block; font-family: 'Space Mono', monospace; font-size: 9px; color: var(--paper); background: var(--moss); border: none; border-radius: 2px; padding: 8px 14px; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; cursor: pointer; transition: background 0.2s; width: fit-content; }
+    .os-btn:hover { background: var(--moss-l); }
+    .price-badge { display: inline-block; font-family: 'Space Mono', monospace; font-size: 14px; color: var(--paper); font-weight: 700; }
+    .score-row { display: flex; border: 1px solid var(--border); border-top: none; margin-bottom: 28px; }
+    .sc { flex: 1; padding: 14px 12px; text-align: center; border-right: 1px solid var(--border); }
+    .sc:last-child { border-right: none; }
+    .sc-lbl { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--stone); margin-bottom: 4px; }
+    .sc-val { font-size: 22px; font-weight: 500; line-height: 1; margin-bottom: 2px; }
+    .sc-sub { font-size: 11px; font-style: italic; color: var(--stone); }
+    .sec-lbl { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--stone); margin-bottom: 9px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
+    .t-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 24px; }
+    .t-card { border-radius: 2px; padding: 10px 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+    .t-type { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+    .t-val { font-size: 14px; color: var(--paper); margin-bottom: 6px; line-height: 1.2; }
+    .t-pill { display: inline-flex; align-items: center; gap: 4px; font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 2px; }
+    .t-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+    .t-card.excl { opacity: 0.28; }
+    hr.div { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <span class="h-kanji">盆</span>
+    <span class="h-title">On-Chain Bonsai · <em>Rarity Checker</em></span>
+  </div>
+  <span class="h-badge">Age &amp; Stage excluded</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('market')" id="tab-market">Listed for Sale</div>
+  <div class="tab" onclick="switchTab('holder')" id="tab-holder">Holder Garden</div>
+  <div class="tab" onclick="switchTab('global')" id="tab-global">Global Ranking</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- PAGE 1: MARKETPLACE                         -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="page active" id="page-market">
+  <div class="mkt-hero">
+    <div class="nft-mosaic" id="heroMosaic"></div>
+    <div class="mosaic-overlay"></div>
+    <div class="mkt-hero-content">
+      <span class="hero-tag">True rarity · √(1/p) · age &amp; stage excluded</span>
+      <h1 class="hero-h1">Browse listings —<br/><em>ranked truly.</em></h1>
+      <p class="hero-sub">Every bonsai currently for sale on OpenSea,<br/>with corrected rarity. No age bias. No stage bias.</p>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar" id="filterBar">
+    <div class="filter-group">
+      <span class="filter-label">Sort by</span>
+      <select id="sortBy" onchange="applyFilters()">
+        <option value="rarity">Rarest first</option>
+        <option value="price_asc">Price: low → high</option>
+        <option value="price_desc">Price: high → low</option>
+        <option value="token_asc">Token # ↑</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Max price (ETH)</span>
+      <select id="maxPrice" onchange="applyFilters()">
+        <option value="">Any</option>
+        <option value="0.01">≤ 0.01</option>
+        <option value="0.02">≤ 0.02</option>
+        <option value="0.05">≤ 0.05</option>
+        <option value="0.1">≤ 0.1</option>
+        <option value="0.5">≤ 0.5</option>
+        <option value="1">≤ 1 ETH</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Rarity tier</span>
+      <select id="rarityFilter" onchange="applyFilters()">
+        <option value="">All tiers</option>
+        <option value="Legendary">Legendary (≤1%)</option>
+        <option value="Epic">Epic (≤5%)</option>
+        <option value="Rare">Rare (≤10%)</option>
+        <option value="Uncommon">Uncommon (≤20%)</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Trait</span>
+      <select id="traitFilter" onchange="applyFilters()">
+        <option value="">Any trait</option>
+        <optgroup label="Canopy">
+          <option value="Canopy:Cloud Pruned">Cloud Pruned (3%)</option>
+          <option value="Canopy:Bare Branches">Bare Branches (0.8%)</option>
+          <option value="Canopy:Weeping">Weeping (5.9%)</option>
+          <option value="Canopy:Sakura Bloom">Sakura Bloom (12%)</option>
+          <option value="Canopy:Pine Needles">Pine Needles (10%)</option>
+          <option value="Canopy:Autumn Maple">Autumn Maple (16%)</option>
+        </optgroup>
+        <optgroup label="Foliage">
+          <option value="Foliage:Snow Plum">Snow Plum (0.8%)</option>
+          <option value="Foliage:Royal Purple">Royal Purple (4%)</option>
+          <option value="Foliage:Golden Ginkgo">Golden Ginkgo (4.7%)</option>
+          <option value="Foliage:Sakura Pink">Sakura Pink (10%)</option>
+          <option value="Foliage:Crimson">Crimson (13%)</option>
+        </optgroup>
+        <optgroup label="Pot Glaze">
+          <option value="Pot Glaze:Gold Leaf">Gold Leaf (0.8%)</option>
+          <option value="Pot Glaze:Cherry Lacquer">Cherry Lacquer (2.7%)</option>
+          <option value="Pot Glaze:Pearl White">Pearl White (3.8%)</option>
+          <option value="Pot Glaze:Obsidian">Obsidian (4.3%)</option>
+        </optgroup>
+        <optgroup label="Pot Shape">
+          <option value="Pot Shape:Slab">Slab (0.9%)</option>
+          <option value="Pot Shape:Drum">Drum (5.3%)</option>
+          <option value="Pot Shape:Tall Vase">Tall Vase (9.9%)</option>
+        </optgroup>
+        <optgroup label="Trunk Style">
+          <option value="Trunk Style:Kengai">Kengai (1.1%)</option>
+          <option value="Trunk Style:Sokan">Sokan (5.2%)</option>
+          <option value="Trunk Style:Bunjin">Bunjin (11.6%)</option>
+        </optgroup>
+        <optgroup label="Shelf">
+          <option value="Shelf:Floating">Floating (2.3%)</option>
+          <option value="Shelf:Moss Bed">Moss Bed (7.8%)</option>
+        </optgroup>
+        <optgroup label="Blossoms">
+          <option value="Blossoms:Yes">Blossoms: Yes (14.8%)</option>
+        </optgroup>
+        <optgroup label="Special">
+          <option value="Name:any">Named bonsai (unique)</option>
+        </optgroup>
+      </select>
+    </div>
+    <button class="filter-reset" onclick="resetFilters()">Reset filters</button>
+    <button class="filter-reset" onclick="refreshListings()" style="border-color:var(--moss);color:var(--moss-l)">↻ Refresh listings</button>
+    <span class="results-count" id="resultsCount"></span>
+    <button class="load-btn" id="loadListingsBtn" onclick="loadListings()">Load Listings</button>
+  </div>
+
+  <div class="section-wrap">
+    <div id="mktStatus"></div>
+    <div class="listing-grid" id="listingGrid"></div>
+    <button class="load-more" id="mktLoadMore" style="display:none" onclick="showMoreListings()">Show more</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- PAGE 2: HOLDER GARDEN                       -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="page" id="page-holder">
+  <div class="holder-hero">
+    <div class="nft-mosaic" id="heroMosaic2"></div>
+    <div class="mosaic-overlay"></div>
+    <div class="holder-hero-content">
+      <span class="hero-tag">Corrected Rarity · holder view</span>
+      <h1 class="hero-h1">Your <em>garden,</em><br/>ranked truly.</h1>
+      <p class="hero-sub">Enter an Ethereum address to see all bonsai<br/>sorted by true rarity — no age or stage bias.</p>
+      <div class="search-box">
+        <input id="addrInput" type="text" placeholder="Ethereum address (0x…)" autocomplete="off" autocorrect="off" spellcheck="false"/>
+        <button id="searchBtn" onclick="searchHolder()">Enter</button>
+      </div>
+    </div>
+  </div>
+  <div id="holderStatus" style="display:none;padding:20px;text-align:center"></div>
+  <div class="section-wrap" id="holderResults" style="display:none"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- PAGE 3: GLOBAL RANKING                      -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="page" id="page-global">
+  <div class="section-wrap">
+    <div class="global-intro">
+      <h2>The <em>true</em> ranking</h2>
+      <p>All 3,200 bonsai ranked by corrected rarity.<br/>Age &amp; Stage excluded. √(1/p) scoring.<br/>Loads instantly from static file.</p>
+      <button class="action-btn" id="globalBtn" onclick="startGlobal()">Load Global Ranking</button>
+    </div>
+    <div id="globalStatus" style="display:none;text-align:center;padding:20px"></div>
+    <div id="globalList"></div>
+    <button class="load-more" id="globalLoadMore" style="display:none" onclick="showMoreGlobal()">Show more</button>
+  </div>
+</div>
+
+<!-- DETAIL OVERLAY -->
+<div class="overlay" id="overlay">
+  <div class="ov-header">
+    <button class="back-btn" onclick="closeDetail()">← Back</button>
+    <span class="ov-title" id="ovTitle"></span>
+  </div>
+  <div class="ov-body" id="ovBody"></div>
+</div>
+
+<script>
+const KEY      = "b7db8fa50a88f6083c38c478c5c3d58d";
+const CONTRACT = "0xd1bd61c856c1aee57f0439bc018a2b712ce89580";
+const SLUG     = "onchainbonsai";
+const SUPPLY   = 3192;
+const EXCL     = ["age (months)", "stage"];
+
+let traitCounts  = null;
+let allListings  = []; // full loaded listings with scores
+let filteredListings = [];
+let listingsShown = 0;
+let holderScored = [];
+let globalScored = [];
+let globalShown  = 0;
+const PAGE = 50;
+
+// ── Rarity ──────────────────────────────────────────────────────
+function tier(p) {
+  if (p <= 1)  return { l:"Legendary", c:"#c9a84c", bg:"rgba(201,168,76,0.09)",  bd:"rgba(201,168,76,0.3)"   };
+  if (p <= 5)  return { l:"Epic",      c:"#9b72cf", bg:"rgba(155,114,207,0.09)", bd:"rgba(155,114,207,0.3)"  };
+  if (p <= 10) return { l:"Rare",      c:"#4a90d9", bg:"rgba(74,144,217,0.09)",  bd:"rgba(74,144,217,0.3)"   };
+  if (p <= 20) return { l:"Uncommon",  c:"#5a9e6a", bg:"rgba(90,158,106,0.09)",  bd:"rgba(90,158,106,0.24)"  };
+  if (p <= 40) return { l:"Common",    c:"#7a7868", bg:"rgba(122,120,104,0.06)", bd:"rgba(122,120,104,0.18)" };
+  return               { l:"Abundant", c:"#484840", bg:"rgba(72,72,64,0.04)",    bd:"rgba(72,72,64,0.14)"    };
+}
+
+function rarityScore(traits) {
+  if (!traits) return 0;
+  if (traits.some(t => t.trait_type === "Name")) return 999999;
+  let s = 0;
+  for (const t of traits) {
+    if (EXCL.includes(t.trait_type?.toLowerCase())) continue;
+    // Use pre-computed score from lookup (sqrt(supply/count) method)
+    if (scoreLookup) {
+      const info = scoreLookup[t.trait_type]?.[t.value];
+      if (info) { s += info.score; continue; }
+    }
+    // Fallback: compute sqrt(supply/count)
+    const c = getCount(t.trait_type, t.value);
+    if (c > 0) s += Math.sqrt(SUPPLY / c);
+  }
+  return s;
+}
+
+function getCount(traitType, value) {
+  const map = traitCounts?.[traitType];
+  if (!map || typeof map !== "object") return 0;
+  if (map[value] !== undefined) return map[value];
+  const lv = String(value).toLowerCase();
+  for (const [k, v] of Object.entries(map)) { if (k.toLowerCase() === lv) return v; }
+  return 0;
+}
+
+function rankColor(rank, total) {
+  if (rank === 1) return "#c9a84c";
+  const p = rank / total;
+  if (p <= 0.02) return "#c9a84c";
+  if (p <= 0.08) return "#9b72cf";
+  if (p <= 0.2)  return "#4a90d9";
+  if (p <= 0.4)  return "#5a9e6a";
+  return "#7a7868";
+}
+
+function topTier(traits) {
+  // Find rarest trait tier for this NFT
+  let best = null, bestP = 100;
+  for (const t of (traits||[])) {
+    if (EXCL.includes(t.trait_type?.toLowerCase())) continue;
+    const c = getCount(t.trait_type, t.value);
+    if (c > 0) { const p = c/SUPPLY*100; if (p < bestP) { bestP = p; best = tier(p); } }
+  }
+  return best;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Tab switching ───────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  document.getElementById("page-" + name).classList.add("active");
+}
+
+// ── API helpers ─────────────────────────────────────────────────
+// scores.json lookup: { traitType: { value: { count, pct, score } } }
+let scoreLookup = null;
+// Global rank map: { tokenId -> rank (1-3200) }
+let globalRankMap = null;
+
+async function ensureTraits() {
+  if (scoreLookup && traitCounts) return;
+  // Load pre-computed scores.json from GitHub (same repo, instant)
+  try {
+    const res = await fetch("scores.json");
+    if (res.ok) {
+      const data = await res.json();
+      scoreLookup = data.lookup;
+      // Build traitCounts from lookup for backward compat
+      traitCounts = {};
+      for (const [tt, vals] of Object.entries(scoreLookup)) {
+        traitCounts[tt] = {};
+        for (const [val, info] of Object.entries(vals)) {
+          traitCounts[tt][val] = info.count;
+        }
+      }
+    }
+  } catch(e) {}
+  // Also load global rankings if available
+  loadGlobalRankMap();
+  // Fallback: fetch from OpenSea API if no scoreLookup
+  if (!scoreLookup) {
+    const cached = cacheGet(CACHE_KEY_TRAITS);
+    if (cached) { traitCounts = cached; return; }
+    const res = await fetch(`https://api.opensea.io/api/v2/traits/${SLUG}`, { headers: { "x-api-key": KEY } });
+    if (!res.ok) throw new Error("Failed to load trait data");
+    traitCounts = (await res.json()).counts || {};
+    cacheSet(CACHE_KEY_TRAITS, traitCounts);
+  }
+}
+
+async function loadGlobalRankMap() {
+  if (globalRankMap) return;
+  try {
+    const res = await fetch("rankings.json");
+    if (!res.ok) return;
+    const data = await res.json();
+    globalRankMap = {};
+    for (const r of (data.rankings || [])) {
+      globalRankMap[String(r.id)] = r.rank;
+    }
+  } catch(e) {}
+}
+
+async function fetchWithRetry(url, attempt = 0) {
+  const res = await fetch(url, { headers: { "x-api-key": KEY } });
+  if (res.ok) return res.json();
+  if (res.status === 429 && attempt < 4) { await sleep(1200 * (attempt+1)); return fetchWithRetry(url, attempt+1); }
+  throw new Error(`HTTP ${res.status}`);
+}
+
+async function loadNFT(tokenId, attempt = 0) {
+  const res = await fetch(`https://api.opensea.io/api/v2/chain/ethereum/contract/${CONTRACT}/nfts/${tokenId}`, { headers: { "x-api-key": KEY } });
+  if (res.ok) return (await res.json()).nft;
+  if (res.status === 429 && attempt < 5) { await sleep(1400*(attempt+1)); return loadNFT(tokenId, attempt+1); }
+  throw new Error(`NFT ${tokenId}: ${res.status}`);
+}
+
+async function batchLoad(ids, onProgress, batchSize=4, delay=600) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i+batchSize);
+    const res = await Promise.all(batch.map(id => loadNFT(id)));
+    out.push(...res);
+    onProgress(out.length, ids.length);
+    if (i+batchSize < ids.length) await sleep(delay);
+  }
+  return out;
+}
+
+// ── HERO MOSAIC ─────────────────────────────────────────────────
+async function buildMosaic(id) {
+  const mosaic = document.getElementById(id);
+  if (!mosaic) return;
+  for (let i = 0; i < 27; i++) {
+    const cell = document.createElement("div");
+    cell.className = "mosaic-cell";
+    mosaic.appendChild(cell);
+  }
+  try {
+    const data = await fetchWithRetry(`https://api.opensea.io/api/v2/collection/${SLUG}/nfts?limit=27`);
+    const cells = mosaic.querySelectorAll(".mosaic-cell");
+    (data.nfts||[]).forEach((nft, i) => {
+      const imgUrl = nft.display_image_url || nft.image_url;
+      if (!imgUrl || !cells[i]) return;
+      const img = document.createElement("img");
+      img.src = imgUrl; img.loading = "lazy";
+      img.onload = () => img.classList.add("loaded");
+      cells[i].appendChild(img);
+    });
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE 1: MARKETPLACE LISTINGS
+// ═══════════════════════════════════════════════════════════════
+
+function refreshListings() {
+  cacheDel(CACHE_KEY_LISTING);
+  loadListings();
+}
+
+function setMktStatus(html, err=false) {
+  const el = document.getElementById("mktStatus");
+  el.innerHTML = html ? `<div class="status-text${err?" err":""}">${html}</div>` : "";
+}
+
+// Cache keys
+const CACHE_KEY_TRAITS  = "ocb_traits_v1";
+const CACHE_KEY_LISTING = "ocb_listings_v1";
+const CACHE_TTL_LONG  = 24 * 60 * 60 * 1000; // 24h — for traits & holder
+const CACHE_TTL_SHORT = 30 * 60 * 1000;       // 30min — for listings
+
+function cacheGet(key, ttl) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > (ttl || CACHE_TTL_LONG)) { localStorage.removeItem(key); return null; }
+    return data;
+  } catch(e) { return null; }
+}
+function cacheSet(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+}
+function cacheDel(key) {
+  try { localStorage.removeItem(key); } catch(e) {}
+}
+
+async function loadListings() {
+  document.getElementById("loadListingsBtn").disabled = true;
+  document.getElementById("listingGrid").innerHTML = "";
+  document.getElementById("mktLoadMore").style.display = "none";
+  allListings = []; filteredListings = []; listingsShown = 0;
+
+  try {
+    await ensureTraits();
+
+    // ── Check cache first ──────────────────────────────────────
+    const cached = cacheGet(CACHE_KEY_LISTING, CACHE_TTL_SHORT);
+    if (cached) {
+      const age = Math.round((Date.now() - JSON.parse(localStorage.getItem(CACHE_KEY_LISTING)||'{"ts":0}').ts) / 60000);
+      setMktStatus(`✓ ${cached.length} listings · cached ${age}m ago · <button onclick="refreshListings()" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--moss-l);border-radius:2px;padding:2px 8px;font-family:Space Mono,monospace;font-size:9px;letter-spacing:0.08em;cursor:pointer;margin-left:4px">↻ Refresh</button>`);
+      allListings = cached;
+      setTimeout(() => setMktStatus(""), 2000);
+      applyFilters();
+      document.getElementById("loadListingsBtn").disabled = false;
+      return;
+    }
+
+    // ── Step 1: Fetch all listings (fast — just pagination) ────
+    setMktStatus("Fetching active listings…");
+    let listings = [], cursor = null;
+    do {
+      const url = `https://api.opensea.io/api/v2/listings/collection/${SLUG}/all?limit=100${cursor?"&next="+cursor:""}`;
+      const data = await fetchWithRetry(url);
+      listings = listings.concat(data.listings || []);
+      cursor = data.next || null;
+      setMktStatus(`Found ${listings.length} listings…`);
+      if (cursor) await sleep(200);
+    } while (cursor);
+
+    if (!listings.length) { setMktStatus("No active listings found.", true); return; }
+
+    // Parse token IDs + prices
+    const listingMap = {};
+    for (const l of listings) {
+      const nftId = l.token_id
+        || l.protocol_data?.parameters?.offer?.[0]?.identifierOrCriteria;
+      if (!nftId) continue;
+      const priceWei = l.price?.current?.value || l.current_price;
+      const priceEth = priceWei ? parseFloat(priceWei) / 1e18 : null;
+      if (!listingMap[nftId] || priceEth < listingMap[nftId].price) {
+        listingMap[nftId] = { price: priceEth };
+      }
+    }
+    const tokenIds = Object.keys(listingMap);
+    if (!tokenIds.length) { setMktStatus("Could not parse listing token IDs.", true); return; }
+
+    // ── Step 2: Show skeleton cards immediately ────────────────
+    const grid = document.getElementById("listingGrid");
+    tokenIds.forEach(id => {
+      const card = document.createElement("div");
+      card.className = "listing-card";
+      card.id = `lc-${id}`;
+      const price = listingMap[id].price;
+      card.innerHTML = `
+        <div class="lc-img" style="background:#0d0d0a;display:flex;align-items:center;justify-content:center">
+          <span style="font-size:32px;color:#1e1e14;font-family:serif">盆</span>
+        </div>
+        <div class="lc-body">
+          <div class="lc-name" style="color:var(--stone)">Bonsai #${id}</div>
+          <div class="lc-price">${price!==null?`Ξ ${price.toFixed(4)}`:"—"}</div>
+          <div class="lc-score" style="color:var(--stone);font-size:8px">loading traits…</div>
+        </div>`;
+      grid.appendChild(card);
+    });
+
+    // ── Step 3: Load traits progressively, update cards ────────
+    const total = tokenIds.length;
+    let done = 0;
+    const BATCH = 8, DELAY = 250;
+
+    for (let i = 0; i < tokenIds.length; i += BATCH) {
+      const batch = tokenIds.slice(i, i + BATCH);
+      const results = await Promise.allSettled(batch.map(id => loadNFT(id)));
+
+      results.forEach((result, j) => {
+        const id = batch[j];
+        if (result.status !== "fulfilled") return;
+        const nft = result.value;
+        const s = rarityScore(nft.traits || []);
+        const isNamed = (nft.traits||[]).some(t => t.trait_type === "Name");
+        const price = listingMap[id]?.price ?? null;
+        const item = { nft, score: s, isNamed, price };
+        allListings.push(item);
+
+        // Update the skeleton card in place
+        const card = document.getElementById(`lc-${id}`);
+        if (!card) return;
+        const img = nft.display_image_url || nft.image_url || "";
+        const t = topTier(nft.traits);
+        // Compute global rank among loaded so far
+        const sortedSoFar = [...allListings].sort((a,b)=>b.score-a.score);
+        const rank = sortedSoFar.findIndex(x=>x.nft.identifier===id) + 1;
+        const rc = rankColor(rank, total);
+        card.className = `listing-card${isNamed?" named":""}`;
+        card.onclick = () => openDetail('market', allListings.indexOf(item), rank, total);
+        card.innerHTML = `
+          <div class="lc-img">
+            ${img?`<img src="${img}" alt="${nft.name}" loading="lazy"/>`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#1a1a14">盆</div>`}
+            <span class="lc-rank" style="color:${rc}">#${rank}</span>
+            ${isNamed?`<span class="lc-named">✦</span>`:""}
+          </div>
+          <div class="lc-body">
+            <div class="lc-name">${nft.name||`Bonsai #${id}`}</div>
+            <div class="lc-price">${price!==null?`Ξ ${price.toFixed(4)}`:"—"}</div>
+            <div class="lc-score" style="color:${t?t.c:""}">${t?t.l:""} · ${isNamed?"∞":s.toFixed(1)}</div>
+            ${t?`<div class="lc-rarity-bar"><div class="lc-rarity-fill" style="width:${Math.min(s/40*100,100)}%;background:${t.c}"></div></div>`:""}
+          </div>`;
+        done++;
+      });
+
+      setMktStatus(`Loading traits… ${done} / ${total}`);
+      if (i + BATCH < tokenIds.length) await sleep(DELAY);
+    }
+
+    // Final: re-sort all cards and save cache
+    cacheSet(CACHE_KEY_LISTING, allListings);
+    setMktStatus("");
+    applyFilters();
+
+  } catch(e) {
+    setMktStatus("Error: " + e.message, true);
+  } finally {
+    document.getElementById("loadListingsBtn").disabled = false;
+  }
+}
+
+function applyFilters() {
+  const sortBy = document.getElementById("sortBy").value;
+  const maxPrice = parseFloat(document.getElementById("maxPrice").value) || Infinity;
+  const rarityF = document.getElementById("rarityFilter").value;
+  const traitF = document.getElementById("traitFilter").value;
+
+  let filtered = allListings.filter(item => {
+    // Price filter
+    if (item.price !== null && item.price > maxPrice) return false;
+    // Rarity tier filter
+    if (rarityF) {
+      const t = topTier(item.nft.traits);
+      if (!t || t.l !== rarityF) return false;
+    }
+    // Trait filter
+    if (traitF) {
+      if (traitF === "Name:any") {
+        if (!item.isNamed) return false;
+      } else {
+        const [filterType, filterVal] = traitF.split(":");
+        const has = (item.nft.traits||[]).some(t => t.trait_type === filterType && t.value === filterVal);
+        if (!has) return false;
+      }
+    }
+    return true;
+  });
+
+  // Sort
+  if (sortBy === "rarity") filtered.sort((a,b) => b.score - a.score);
+  else if (sortBy === "price_asc") filtered.sort((a,b) => (a.price??999) - (b.price??999));
+  else if (sortBy === "price_desc") filtered.sort((a,b) => (b.price??0) - (a.price??0));
+  else if (sortBy === "token_asc") filtered.sort((a,b) => parseInt(a.nft.identifier) - parseInt(b.nft.identifier));
+
+  filteredListings = filtered;
+  listingsShown = 0;
+  document.getElementById("listingGrid").innerHTML = "";
+  document.getElementById("resultsCount").textContent = `${filtered.length} results`;
+  showMoreListings();
+}
+
+function resetFilters() {
+  document.getElementById("sortBy").value = "rarity";
+  document.getElementById("maxPrice").value = "";
+  document.getElementById("rarityFilter").value = "";
+  document.getElementById("traitFilter").value = "";
+  applyFilters();
+}
+
+function showMoreListings() {
+  const next = filteredListings.slice(listingsShown, listingsShown + PAGE);
+  if (!next.length) return;
+  const grid = document.getElementById("listingGrid");
+
+  // Build global rank index for all listings
+  const allSorted = [...allListings].sort((a,b) => b.score - a.score);
+  const rankMap = {};
+  allSorted.forEach((item, i) => { rankMap[item.nft.identifier] = i+1; });
+
+  next.forEach((item, j) => {
+    const { nft, score, isNamed, price } = item;
+    const globalRank = rankMap[nft.identifier] || "?";
+    const rc = rankColor(globalRank, allListings.length);
+    const img = nft.display_image_url || nft.image_url || "";
+    const t = topTier(nft.traits);
+    const priceStr = price !== null ? `Ξ ${price.toFixed(4)}` : "—";
+
+    const card = document.createElement("div");
+    card.className = `listing-card${isNamed?" named":""}`;
+    const mktIdx = allListings.indexOf(item); card.onclick = () => openDetail('market', mktIdx, globalRank, allListings.length);
+    card.innerHTML = `
+      <div class="lc-img">
+        ${img?`<img src="${img}" alt="${nft.name}" loading="lazy"/>`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#1a1a14">盆</div>`}
+        <span class="lc-rank" style="color:${rc}">#${globalRank}</span>
+        ${isNamed?`<span class="lc-named">✦</span>`:""}
+      </div>
+      <div class="lc-body">
+        <div class="lc-name">${nft.name||`Bonsai #${nft.identifier}`}</div>
+        <div class="lc-price">${priceStr}</div>
+        <div class="lc-score" style="color:${t?t.c:""}">${t?t.l:""} · score ${isNamed?"∞":score.toFixed(1)}</div>
+        ${t?`<div class="lc-rarity-bar"><div class="lc-rarity-fill" style="width:${Math.min(score/40*100,100)}%;background:${t.c}"></div></div>`:""}
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  listingsShown += next.length;
+  const btn = document.getElementById("mktLoadMore");
+  btn.style.display = listingsShown < filteredListings.length ? "block" : "none";
+  if (btn.style.display !== "none") btn.textContent = `Show more (${filteredListings.length - listingsShown} remaining)`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE 2: HOLDER
+// ═══════════════════════════════════════════════════════════════
+function setHolderStatus(html, err=false) {
+  const el = document.getElementById("holderStatus");
+  el.style.display = html ? "block" : "none";
+  el.innerHTML = html ? `<div class="status-text${err?" err":""}">${html}</div>` : "";
+}
+function setHolderProgress(done, total) {
+  const pct = Math.round(done/total*100);
+  document.getElementById("holderStatus").style.display = "block";
+  document.getElementById("holderStatus").innerHTML = `<div class="status-text">Loading… ${done} / ${total}</div><div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div>`;
+}
+
+
+function renderHolderGrid(scored) {
+  const hasGlobal = globalRankMap && Object.keys(globalRankMap).length > 0;
+  let html = `<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+    <span style="font-size:18px">${scored.length} bonsai</span>
+    <span style="font-family:Space Mono,monospace;font-size:9px;color:var(--stone)">√(1/p) · age &amp; stage excluded${hasGlobal ? " · global rank" : ""}</span>
+  </div><div class="bonsai-grid">`;
+  scored.forEach(({nft,score,isNamed},i) => {
+    const walletRank = i+1;
+    const globalRank = globalRankMap ? globalRankMap[String(nft.identifier)] : null;
+    const rankLabel = isNamed ? "✦ #1" : globalRank ? `#${globalRank} / 3200` : `#${walletRank}`;
+    const rc = isNamed ? "#c9a84c" : globalRank ? rankColor(globalRank, 3200) : rankColor(walletRank, scored.length);
+    const img = nft.display_image_url||nft.image_url||"";
+    const detailRank = globalRank || walletRank;
+    const detailTotal = globalRank ? 3200 : scored.length;
+    html+=`<div style="cursor:pointer;border-radius:3px;overflow:hidden;background:rgba(255,255,255,0.02);border:1px solid ${isNamed?"rgba(201,168,76,0.3)":"var(--border)"};transition:border-color 0.2s,transform 0.15s;position:relative" onclick="openDetail('holder',${i},${detailRank},${detailTotal})">
+      <div style="aspect-ratio:1;background:#090907;overflow:hidden;position:relative">
+        ${img?`<img src="${img}" alt="${nft.name}" loading="lazy" style="width:100%;height:100%;object-fit:cover;image-rendering:pixelated;display:block"/>`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#1a1a14">盆</div>`}
+        <span style="position:absolute;top:6px;left:6px;font-family:Space Mono,monospace;font-size:9px;background:rgba(9,9,7,0.9);padding:2px 6px;border-radius:2px;color:${rc}">${rankLabel}</span>
+      </div>
+      <div style="padding:8px 10px 10px">
+        <div style="font-size:12px;font-weight:500;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nft.name||`Bonsai #${nft.identifier}`}</div>
+        <div style="font-family:Space Mono,monospace;font-size:9px;color:${isNamed?"#c9a84c":"#4a7840"}">${isNamed?"✦ Named · Unique":"score "+score.toFixed(2)}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  const el = document.getElementById("holderResults");
+  el.innerHTML = html; el.style.display = "block";
+}
+
+
+async function searchHolder() {
+  const addr = document.getElementById("addrInput").value.trim();
+  if (!addr.match(/^0x[0-9a-fA-F]{40}$/)) { setHolderStatus("Invalid address.", true); return; }
+  document.getElementById("holderResults").style.display = "none";
+  document.getElementById("searchBtn").disabled = true;
+  // Check cache
+  const holderCached = cacheGet("ocb_holder_" + addr.toLowerCase());
+  if (holderCached) {
+    holderScored = holderCached;
+    setHolderStatus(`✓ Loaded from cache (${holderCached.length} bonsai).`);
+    setTimeout(() => setHolderStatus(""), 2000);
+    renderHolderGrid(holderScored);
+    document.getElementById("searchBtn").disabled = false;
+    return;
+  }
+  setHolderStatus("Reading the garden…");
+  try {
+    await ensureTraits();
+    let nfts = [], cursor = null;
+    do {
+      const url = new URL(`https://api.opensea.io/api/v2/chain/ethereum/account/${addr}/nfts`);
+      url.searchParams.set("collection", SLUG); url.searchParams.set("limit", "200");
+      if (cursor) url.searchParams.set("next", cursor);
+      const data = await fetchWithRetry(url.toString());
+      nfts = nfts.concat(data.nfts||[]); cursor = data.next||null;
+    } while (cursor);
+    if (!nfts.length) { setHolderStatus("No bonsai found.", true); return; }
+    setHolderProgress(0, nfts.length);
+    const details = await batchLoad(nfts.map(n => n.identifier), setHolderProgress);
+    const scored = details.map(nft => ({ nft, score: rarityScore(nft.traits||[]), isNamed: (nft.traits||[]).some(t=>t.trait_type==="Name") }))
+      .sort((a,b) => b.score - a.score);
+    holderScored = scored;
+    cacheSet("ocb_holder_" + addr.toLowerCase(), scored.map(({nft,score,isNamed}) => ({nft,score,isNamed})));
+    setHolderStatus("");
+    renderHolderGrid(scored);
+  } catch(e) { setHolderStatus(e.message, true); }
+  finally { document.getElementById("searchBtn").disabled = false; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE 3: GLOBAL RANKING
+// ═══════════════════════════════════════════════════════════════
+async function startGlobal() {
+  document.getElementById("globalBtn").disabled = true;
+  const statusEl = document.getElementById("globalStatus");
+  statusEl.style.display = "block";
+  statusEl.innerHTML = `<div class="status-text">Loading rankings…</div>`;
+
+  try {
+    // Ensure trait scores are loaded (needed for detail view)
+    await ensureTraits();
+    // Try static rankings.json first (instant!)
+    const res = await fetch("rankings.json");
+    if (res.ok) {
+      const data = await res.json();
+      // Convert to our internal format
+      globalScored = data.rankings.map(r => ({
+        nft: {
+          identifier: r.id,
+          name: r.name,
+          display_image_url: r.img,
+          image_url: r.img,
+          traits: r.traits || [],
+          rarity: { rank: r.opensea_rank },
+          opensea_url: `https://opensea.io/assets/ethereum/${CONTRACT}/${r.id}`
+        },
+        score: r.score,
+        isNamed: r.isNamed
+      }));
+      globalShown = 0;
+      statusEl.style.display = "none";
+      // Show generated date
+      const genDate = new Date(data.generated).toLocaleDateString();
+      document.getElementById("globalList").innerHTML =
+        `<div style="font-family:Space Mono,monospace;font-size:9px;color:var(--stone);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          ${data.total} bonsai · ranked by −log₂(p) · generated ${genDate}
+        </div>`;
+      showMoreGlobal();
+      return;
+    }
+
+    // rankings.json not found — show instructions
+    statusEl.innerHTML = `
+      <div class="status-text err" style="max-width:480px;margin:0 auto;text-align:left;line-height:1.8">
+        <strong style="color:var(--paper)">rankings.json not found.</strong><br/><br/>
+        To generate the static ranking:<br/>
+        1. Open <a href="generate-rankings.html" target="_blank" style="color:#5a9e6a">generate-rankings.html</a><br/>
+        2. Click "Start Generation" (takes ~15 min)<br/>
+        3. Download the file and upload it to your GitHub repo<br/>
+        4. Come back here — global ranking will load instantly forever.
+      </div>`;
+    document.getElementById("globalBtn").disabled = false;
+
+  } catch(e) {
+    statusEl.innerHTML = `<div class="status-text err">${e.message}</div>`;
+    document.getElementById("globalBtn").disabled = false;
+  }
+}
+
+function showMoreGlobal() {
+  const next = globalScored.slice(globalShown, globalShown+PAGE);
+  if (!next.length) return;
+  const listEl = document.getElementById("globalList");
+  next.forEach(({nft,score,isNamed},j) => {
+    const rank=globalShown+j+1, rc=rankColor(rank,globalScored.length);
+    const img=nft.display_image_url||nft.image_url||"";
+    const traits=(nft.traits||[]).filter(t=>!EXCL.includes(t.trait_type?.toLowerCase()));
+    let rarestTrait=null, rarestPct=100;
+    for(const t of traits){const c=getCount(t.trait_type,t.value);if(c>0){const p=c/SUPPLY*100;if(p<rarestPct){rarestPct=p;rarestTrait=t;}}}
+    const t2=rarestTrait?tier(rarestPct):null;
+    const row=document.createElement("div");
+    row.className="global-row";
+    const absoluteIdx = globalShown+j; row.onclick=()=>openDetail('global',absoluteIdx,rank,globalScored.length);
+    row.innerHTML=`<span class="g-rank" style="color:${rc}">#${rank}</span>
+      <div class="g-img">${img?`<img src="${img}" alt="${nft.name}" loading="lazy"/>`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;color:#1a1a14">盆</div>`}</div>
+      <div class="g-info"><div class="g-name">${nft.name||`Bonsai #${nft.identifier}`}</div><div class="g-score">${isNamed?"✦ Named · Unique":"score "+score.toFixed(2)}</div></div>
+      <div class="g-right">${t2&&rarestTrait?`<span class="g-rarity" style="background:${t2.bg};color:${t2.c};border:1px solid ${t2.bd}">${t2.l}</span><div style="font-family:monospace;font-size:8px;color:${t2.c};margin-top:3px">${rarestTrait.value} · ${rarestPct.toFixed(1)}%</div>`:""}</div>`;
+    listEl.appendChild(row);
+  });
+  globalShown+=next.length;
+  const btn=document.getElementById("globalLoadMore");
+  btn.style.display=globalShown<globalScored.length?"block":"none";
+  if(btn.style.display!=="none") btn.textContent=`Show more (${globalScored.length-globalShown} remaining)`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETAIL OVERLAY
+// ═══════════════════════════════════════════════════════════════
+function openDetail(source, index, rank, total) {
+  const arr = source==='market' ? allListings : source==='global' ? globalScored : holderScored;
+  const item = arr[index];
+  if (!item) return;
+  const { nft, score, isNamed, price } = item;
+  // Override rank/total with global rank if available
+  if (source === 'holder' && globalRankMap) {
+    const gr = globalRankMap[String(nft.identifier)];
+    if (gr) { rank = gr; total = 3200; }
+  }
+  const traits=nft.traits||[], excl=traits.filter(t=>EXCL.includes(t.trait_type?.toLowerCase())), incl=traits.filter(t=>!EXCL.includes(t.trait_type?.toLowerCase()));
+  const nameTrait=traits.find(t=>t.trait_type==="Name");
+  const opensea_rank=nft.rarity?.rank??null;
+  const img=nft.display_image_url||nft.image_url;
+  document.getElementById("ovTitle").textContent=nft.name||`Bonsai #${nft.identifier}`;
+  let html=`<div class="ov-hero">
+    ${img?`<div class="ov-img"><img src="${img}" alt="${nft.name}"/></div>`:""}
+    <div class="ov-info">
+      <div class="ov-name">${nft.name||`Bonsai #${nft.identifier}`}</div>
+      <div class="ov-id">TOKEN #${nft.identifier}</div>
+      ${isNamed?`<span class="named-bdg">✦ NAMED · 1 OF 1</span>`:""}
+      ${price!==undefined&&price!==null?`<div class="price-badge">Ξ ${price.toFixed(4)}</div>`:""}
+      ${nft.opensea_url?`<a href="${nft.opensea_url}" target="_blank" class="os-btn">Buy on OpenSea ↗</a>`:""}
+    </div>
+  </div>
+  <div class="score-row">
+    <div class="sc"><div class="sc-lbl">Corrected rank</div><div class="sc-val" style="color:${isNamed?"#c9a84c":"#e8e0d0"}">${isNamed?"#1":rank?`#${rank}`:"—"}</div><div class="sc-sub">${total?"of "+total:"—"}</div></div>
+    <div class="sc"><div class="sc-lbl">Rarity score</div><div class="sc-val" style="color:#5a9e6a">${isNamed?"∞":score.toFixed(2)}</div><div class="sc-sub">√(supply/count) method</div></div>
+    ${opensea_rank?`<div class="sc"><div class="sc-lbl">OpenSea rank</div><div class="sc-val" style="color:#7a6060">#${opensea_rank}</div><div class="sc-sub" style="color:#a07070">⚠ biased</div></div>`:""}
+  </div>
+  <div class="sec-lbl">Traits · counted for rarity (${incl.length})</div>
+  <div class="t-grid">`;
+  for(const t of incl){const c=getCount(t.trait_type,t.value);const p=c>0?Math.round(c/SUPPLY*1000)/10:null;const t2=p!==null?tier(p):{l:"—",c:"#484840",bg:"rgba(72,72,64,0.04)",bd:"rgba(72,72,64,0.14)"};
+    html+=`<div class="t-card" style="background:${t2.bg};border-color:${t2.bd}"><div class="t-type" style="color:${t2.c}">${t.trait_type}</div><div class="t-val">${t.value}</div>${p!==null?`<span class="t-pill" style="background:${t2.bg};color:${t2.c};border:1px solid ${t2.bd}"><span class="t-dot" style="background:${t2.c}"></span>${c.toLocaleString()} · ${p}% · ${t2.l}</span>`:`<span style="color:#3a3a32;font-family:monospace;font-size:8px">unknown</span>`}</div>`;}
+  html+=`</div>`;
+  if(excl.length){html+=`<hr class="div"/><div class="sec-lbl" style="color:#5a4848">Dynamic traits · excluded (${excl.length})</div><div class="t-grid">`;
+    for(const t of excl){const c=getCount(t.trait_type,t.value);const p=c>0?Math.round(c/SUPPLY*1000)/10:null;html+=`<div class="t-card excl"><div class="t-type" style="color:#6a5050">${t.trait_type}</div><div class="t-val" style="color:#8a8070">${t.value}</div>${p!==null?`<span style="font-family:monospace;font-size:8px;color:#4a4842">${c.toLocaleString()} · ${p}%</span>`:""}</div>`;}
+    html+=`</div>`;}
+  const ov=document.getElementById("overlay");
+  document.getElementById("ovBody").innerHTML=html;
+  ov.classList.add("open"); ov.scrollTop=0;
+  requestAnimationFrame(()=>ov.classList.add("vis"));
+}
+
+function closeDetail(){const o=document.getElementById("overlay");o.classList.remove("vis");setTimeout(()=>o.classList.remove("open"),220);}
+
+document.getElementById("addrInput").addEventListener("keydown",e=>{if(e.key==="Enter")searchHolder();});
+
+// Init mosaics
+buildMosaic("heroMosaic");
+buildMosaic("heroMosaic2");
+</script>
+</body>
+</html>
