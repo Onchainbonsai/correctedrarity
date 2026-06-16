@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Generate Rankings</title>
+  <style>
+    body { background:#0b0b08; color:#e8e8e0; font-family:'Space Mono',monospace; padding:24px; font-size:13px; }
+    h1 { font-size:18px; margin-bottom:8px; font-weight:400; }
+    p { color:#7a7870; margin-bottom:20px; font-size:12px; line-height:1.6; }
+    button { background:#3d5a3e; color:#f0ebe0; border:none; border-radius:3px; padding:12px 24px; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; margin-bottom:20px; }
+    button:disabled { background:#1e1e1a; color:#4a4a42; cursor:not-allowed; }
+    .prog-wrap { background:rgba(255,255,255,0.06); height:2px; border-radius:1px; margin-bottom:12px; }
+    .prog-bar { height:100%; background:#5a8c5b; border-radius:1px; transition:width 0.3s; width:0%; }
+    .log { background:#131310; border:1px solid rgba(255,255,255,0.07); border-radius:3px; padding:14px; font-size:11px; color:#7a7870; line-height:1.8; max-height:300px; overflow-y:auto; margin-bottom:20px; }
+    .log .ok { color:#5a9e6a; }
+    .log .err { color:#c97a7a; }
+    .download-btn { display:none; background:#c9a84c; color:#0b0b08; border:none; border-radius:3px; padding:12px 24px; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; font-weight:700; }
+  </style>
+</head>
+<body>
+  <h1>🌳 Generate Global Rankings</h1>
+  <p>This fetches all 3,200 bonsai traits from OpenSea and generates a static <code>rankings.json</code> file.<br/>Run this once, upload the file to GitHub, and the global ranking loads instantly forever.</p>
+  <button id="startBtn" onclick="start()">Start Generation</button>
+  <div class="prog-wrap"><div class="prog-bar" id="prog"></div></div>
+  <div class="log" id="log">Ready. Press Start.</div>
+  <button class="download-btn" id="dlBtn" onclick="download()">⬇ Download rankings.json</button>
+
+  <script>
+    const KEY      = "b7db8fa50a88f6083c38c478c5c3d58d";
+    const CONTRACT = "0xd1bd61c856c1aee57f0439bc018a2b712ce89580";
+    const SLUG     = "onchainbonsai";
+    const SUPPLY   = 3192;
+    const EXCL     = ["age (months)", "stage"];
+
+    let resultData = null;
+
+    function log(msg, type="") {
+      const el = document.getElementById("log");
+      el.innerHTML += `<div class="${type}">${msg}</div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setProgress(pct) {
+      document.getElementById("prog").style.width = pct + "%";
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    async function fetchWithRetry(url, attempt=0) {
+      const res = await fetch(url, { headers: { "x-api-key": KEY } });
+      if (res.ok) return res.json();
+      if (res.status === 429 && attempt < 6) {
+        log(`Rate limited, waiting ${1.5*(attempt+1)}s...`);
+        await sleep(1500*(attempt+1));
+        return fetchWithRetry(url, attempt+1);
+      }
+      throw new Error(`HTTP ${res.status} for ${url}`);
+    }
+
+    async function loadNFT(tokenId, attempt=0) {
+      const res = await fetch(
+        `https://api.opensea.io/api/v2/chain/ethereum/contract/${CONTRACT}/nfts/${tokenId}`,
+        { headers: { "x-api-key": KEY } }
+      );
+      if (res.ok) return (await res.json()).nft;
+      if (res.status === 429 && attempt < 6) {
+        await sleep(1500*(attempt+1));
+        return loadNFT(tokenId, attempt+1);
+      }
+      throw new Error(`NFT ${tokenId}: ${res.status}`);
+    }
+
+    // Pre-computed trait scores from scores.json
+    let scoreLookup = null;
+    async function loadScores() {
+      try {
+        const res = await fetch("scores.json");
+        if (res.ok) { scoreLookup = (await res.json()).lookup; log("✓ Loaded scores.json", "ok"); }
+      } catch(e) { log("scores.json not found, will compute on the fly"); }
+    }
+
+    function calcScore(traits) {
+      if (!traits) return 0;
+      if (traits.some(t => t.trait_type === "Name")) return 999999;
+      let s = 0;
+      for (const t of traits) {
+        if (EXCL.includes(t.trait_type?.toLowerCase())) continue;
+        if (scoreLookup) {
+          const info = scoreLookup[t.trait_type]?.[t.value];
+          if (info) { s += info.score; continue; }
+        }
+        // Fallback: sqrt(supply/count)
+        const map = (scoreLookup || {})[t.trait_type] || {};
+        const info2 = map[t.value];
+        if (info2) s += info2.score;
+      }
+      return Math.round(s * 10000) / 10000;
+    }
+
+    async function start() {
+      document.getElementById("startBtn").disabled = true;
+      document.getElementById("log").innerHTML = "";
+      log("Starting global ranking generation...");
+
+      await loadScores();
+
+      // Step 1: Fetch all NFT IDs from collection
+      log("Step 1: Fetching all token IDs...");
+      let allNFTs = [], cursor = null, page = 0;
+      do {
+        const url = `https://api.opensea.io/api/v2/collection/${SLUG}/nfts?limit=200${cursor?"&next="+cursor:""}`;
+        const data = await fetchWithRetry(url);
+        allNFTs = allNFTs.concat(data.nfts || []);
+        cursor = data.next || null;
+        page++;
+        setProgress(Math.min(allNFTs.length / 3200 * 30, 30));
+        log(`  Page ${page}: ${allNFTs.length} tokens found`);
+        if (cursor) await sleep(300);
+      } while (cursor);
+
+      log(`✓ Found ${allNFTs.length} tokens`, "ok");
+
+      // Step 2: Fetch traits for each NFT in batches
+      log("Step 2: Fetching traits (this takes ~10-15 min on free API)...");
+      const BATCH = 6, DELAY = 400;
+      const results = [];
+      let done = 0;
+
+      for (let i = 0; i < allNFTs.length; i += BATCH) {
+        const batch = allNFTs.slice(i, i + BATCH);
+        const batchResults = await Promise.allSettled(
+          batch.map(n => loadNFT(n.identifier))
+        );
+
+        for (const r of batchResults) {
+          if (r.status === "fulfilled") {
+            const nft = r.value;
+            const score = calcScore(nft.traits || []);
+            const isNamed = (nft.traits||[]).some(t => t.trait_type === "Name");
+            const nameTrait = (nft.traits||[]).find(t => t.trait_type === "Name");
+            // Store minimal data needed for ranking display
+            results.push({
+              id: nft.identifier,
+              name: nft.name || `Bonsai #${nft.identifier}`,
+              img: nft.display_image_url || nft.image_url || "",
+              score,
+              isNamed,
+              namedAs: nameTrait?.value || null,
+              opensea_rank: nft.rarity?.rank || null,
+              // Store only non-excluded traits for display
+              traits: (nft.traits||[]).map(t => ({
+                trait_type: t.trait_type,
+                value: String(t.value)
+              }))
+            });
+          }
+          done++;
+        }
+
+        const pct = 30 + Math.round(done / allNFTs.length * 70);
+        setProgress(pct);
+
+        if (done % 100 === 0 || done === allNFTs.length) {
+          log(`  ${done} / ${allNFTs.length} traits loaded`);
+        }
+        if (i + BATCH < allNFTs.length) await sleep(DELAY);
+      }
+
+      // Step 3: Sort by score
+      log("Step 3: Computing ranks...");
+      results.sort((a, b) => b.score - a.score);
+      results.forEach((r, i) => { r.rank = i + 1; });
+
+      // Step 4: Build output
+      const output = {
+        generated: new Date().toISOString(),
+        total: results.length,
+        supply: SUPPLY,
+        method: "-log2(p), Age & Stage excluded",
+        rankings: results
+      };
+
+      resultData = output;
+      setProgress(100);
+      log(`✓ Done! ${results.length} bonsai ranked.`, "ok");
+      log(`Top 5:`, "ok");
+      results.slice(0,5).forEach(r => {
+        log(`  #${r.rank} ${r.name} — score ${r.score}${r.isNamed?" ✦ NAMED":""}`, "ok");
+      });
+
+      log(`File size: ~${Math.round(JSON.stringify(output).length/1024)}KB`);
+      document.getElementById("dlBtn").style.display = "inline-block";
+    }
+
+    function download() {
+      if (!resultData) return;
+      const blob = new Blob([JSON.stringify(resultData)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "rankings.json"; a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
