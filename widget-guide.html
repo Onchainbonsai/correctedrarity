@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bonsai Widget Setup Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --paper: #f0ebe0; --moss: #3d5a3e; --moss-l: #5a8c5b;
+      --stone: #7a7870; --stone-l: #b0ab9e; --gold: #c9a84c;
+      --bg: #0b0b08; --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--paper); font-family: 'EB Garamond', serif; line-height: 1.7; }
+
+    header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .h-kanji { font-size: 20px; color: var(--moss-l); }
+    .h-title { font-size: 16px; letter-spacing: 0.03em; }
+    .h-title em { font-style: italic; color: var(--moss-l); }
+    .h-back {
+      margin-left: auto;
+      font-family: 'Space Mono', monospace; font-size: 9px;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--stone); text-decoration: none;
+      border: 1px solid var(--border2); border-radius: 2px;
+      padding: 5px 10px;
+    }
+
+    main { max-width: 640px; margin: 0 auto; padding: 40px 20px 80px; }
+
+    .hero { text-align: center; padding: 20px 0 48px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+    .hero-icon { font-size: 64px; display: block; margin-bottom: 16px; }
+    .hero h1 { font-size: 32px; font-weight: 400; margin-bottom: 8px; }
+    .hero h1 em { font-style: italic; color: var(--moss-l); }
+    .hero p { font-size: 16px; color: var(--stone-l); font-style: italic; line-height: 1.7; }
+
+    /* Steps */
+    .step { margin-bottom: 48px; }
+    .step-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+    .step-num {
+      width: 36px; height: 36px; flex-shrink: 0;
+      border: 1px solid var(--moss); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Space Mono', monospace; font-size: 13px;
+      color: var(--moss-l);
+    }
+    .step-title { font-size: 20px; font-weight: 500; }
+    .step p { font-size: 16px; color: var(--stone-l); margin-bottom: 12px; }
+    .step p strong { color: var(--paper); font-weight: 500; }
+
+    /* Code block */
+    .code-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: 16px;
+      margin: 14px 0;
+      position: relative;
+    }
+    .code-block pre {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--moss-l);
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+    .copy-btn {
+      position: absolute; top: 10px; right: 10px;
+      font-family: 'Space Mono', monospace; font-size: 8px;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      background: var(--moss); color: var(--paper);
+      border: none; border-radius: 2px;
+      padding: 4px 8px; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover { background: var(--moss-l); }
+
+    /* Note box */
+    .note {
+      background: rgba(201,168,76,0.06);
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 4px;
+      padding: 14px 16px;
+      margin: 14px 0;
+      font-size: 14px;
+      color: var(--stone-l);
+    }
+    .note strong { color: var(--gold); }
+
+    /* Tip box */
+    .tip {
+      background: rgba(90,140,91,0.06);
+      border: 1px solid rgba(90,140,91,0.2);
+      border-radius: 4px;
+      padding: 14px 16px;
+      margin: 14px 0;
+      font-size: 14px;
+      color: var(--stone-l);
+    }
+    .tip strong { color: var(--moss-l); }
+
+    /* Widget preview mockup */
+    .widget-preview {
+      background: #0b0b08;
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 20px 0;
+      max-width: 280px;
+      aspect-ratio: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 12px;
+    }
+    .widget-preview-bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #1a2a1a, #0d1a10);
+      opacity: 0.8;
+    }
+    .widget-preview-img {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 80px;
+      opacity: 0.6;
+    }
+    .widget-preview-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(11,11,8,0.9) 0%, transparent 50%);
+    }
+    .widget-preview-content { position: relative; z-index: 2; }
+    .wp-rank { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--moss-l); margin-bottom: 2px; }
+    .wp-name { font-size: 14px; color: var(--paper); margin-bottom: 2px; }
+    .wp-trait { font-family: 'Space Mono', monospace; font-size: 8px; color: var(--stone); }
+
+    /* Multiple widgets */
+    .widget-row { display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap; }
+    .widget-small {
+      background: #0b0b08;
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      width: 120px; height: 120px;
+      display: flex; flex-direction: column;
+      justify-content: flex-end;
+      padding: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    .ws-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 50px; opacity: 0.5; }
+    .ws-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(11,11,8,0.9), transparent 60%); }
+    .ws-content { position: relative; z-index: 2; }
+    .ws-rank { font-family: 'Space Mono', monospace; font-size: 8px; color: var(--moss-l); }
+    .ws-name { font-size: 10px; color: var(--paper); }
+
+    /* Divider */
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+    /* FAQ */
+    .faq { margin-top: 48px; }
+    .faq h2 { font-size: 24px; font-weight: 400; margin-bottom: 24px; }
+    .faq h2 em { font-style: italic; color: var(--moss-l); }
+    .faq-item { margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+    .faq-q { font-size: 16px; font-weight: 500; color: var(--paper); margin-bottom: 8px; }
+    .faq-a { font-size: 15px; color: var(--stone-l); }
+
+    /* App store badge */
+    .app-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 10px 16px;
+      text-decoration: none;
+      color: var(--paper);
+      margin: 12px 0;
+      transition: background 0.2s;
+    }
+    .app-badge:hover { background: rgba(255,255,255,0.1); }
+    .app-badge-icon { font-size: 28px; }
+    .app-badge-text { font-family: 'Space Mono', monospace; }
+    .app-badge-text div:first-child { font-size: 8px; color: var(--stone); letter-spacing: 0.1em; text-transform: uppercase; }
+    .app-badge-text div:last-child { font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="h-kanji">盆</span>
+  <span class="h-title">On-Chain Bonsai · <em>Widget Guide</em></span>
+  <a href="index.html" class="h-back">← Rarity Checker</a>
+</header>
+
+<main>
+  <div class="hero">
+    <span class="hero-icon">🌳</span>
+    <h1>Your rarest bonsai,<br/><em>on your home screen.</em></h1>
+    <p>A step-by-step guide to adding live OnChain Bonsai widgets<br/>to your iPhone — pick your <em>favourite</em> bonsai for each widget,<br/>showing live rank, rarity score and growth stage.</p>
+  </div>
+
+  <!-- Widget Preview -->
+  <div style="margin-bottom:48px">
+    <p style="font-family:'Space Mono',monospace;font-size:9px;color:var(--stone);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px">What you'll get — one widget per favourite</p>
+    <div class="widget-row">
+      <div class="widget-small">
+        <div class="ws-bg">🌿</div>
+        <div class="ws-overlay"></div>
+        <div class="ws-content">
+          <div class="ws-rank">#47 / 3200</div>
+          <div class="ws-name">Bonsai #892</div>
+        </div>
+      </div>
+      <div class="widget-small">
+        <div class="ws-bg">🎋</div>
+        <div class="ws-overlay"></div>
+        <div class="ws-content">
+          <div class="ws-rank">#103 / 3200</div>
+          <div class="ws-name">Bonsai #1241</div>
+        </div>
+      </div>
+      <div class="widget-small">
+        <div class="ws-bg">🌸</div>
+        <div class="ws-overlay"></div>
+        <div class="ws-content">
+          <div class="ws-rank" style="color:#c9a84c">✦ NAMED · #1</div>
+          <div class="ws-name">Yuki</div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:13px;color:var(--stone);font-style:italic">Multiple widgets, each showing a different bonsai from your collection, ranked by corrected rarity.</p>
+  </div>
+
+  <hr class="section-divider"/>
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title">Download Scriptable</div>
+    </div>
+    <p>Scriptable is a free iOS app that lets you create custom widgets using JavaScript. It's available on the App Store.</p>
+    <a class="app-badge" href="https://apps.apple.com/app/scriptable/id1405459188" target="_blank">
+      <div class="app-badge-icon">📱</div>
+      <div class="app-badge-text">
+        <div>Download on the</div>
+        <div>Scriptable — App Store</div>
+      </div>
+    </a>
+    <div class="note">
+      <strong>Free.</strong> No subscription, no account needed. Just download and open it.
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title">Download the Widget Script</div>
+    </div>
+    <p>Download the <strong>BonsaiWidget.js</strong> script below. This is the code that powers your widget.</p>
+    <a href="BonsaiWidget.js" download class="app-badge">
+      <div class="app-badge-icon">⬇</div>
+      <div class="app-badge-text">
+        <div>Download</div>
+        <div>BonsaiWidget.js</div>
+      </div>
+    </a>
+    <p>Or copy the script directly from the code block below and paste it into Scriptable manually.</p>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div class="step-title">Add the Script to Scriptable</div>
+    </div>
+    <p><strong>Option A — File import (easiest):</strong></p>
+    <p>1. Open the <strong>Files</strong> app on your iPhone<br/>
+       2. Find the downloaded <strong>BonsaiWidget.js</strong><br/>
+       3. Tap it → it opens automatically in Scriptable ✓</p>
+
+    <p style="margin-top:14px"><strong>Option B — Manual copy/paste:</strong></p>
+    <p>1. Open <strong>Scriptable</strong><br/>
+       2. Tap <strong>+</strong> in the top right<br/>
+       3. Name it <strong>BonsaiWidget</strong><br/>
+       4. Copy the code below and paste it in</p>
+
+    <div class="tip">
+      <strong>Important:</strong> On line 11 of the script, replace the Ethereum address with your own wallet address that holds your bonsai.
+    </div>
+
+    <div class="code-block">
+      <button class="copy-btn" onclick="copyAddr()">Copy address line</button>
+      <pre id="addrLine">const ETH_ADDRESS = "0xYOUR_ADDRESS_HERE";</pre>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <div class="step-title">Test the Script</div>
+    </div>
+    <p>Before adding it as a widget, test it works:</p>
+    <p>1. Open <strong>Scriptable</strong><br/>
+       2. Tap <strong>BonsaiWidget</strong><br/>
+       3. Tap the <strong>▶ play</strong> button<br/>
+       4. You should see a widget preview with your rarest bonsai</p>
+    <div class="note">
+      <strong>Note:</strong> The first run takes ~10-15 seconds as it fetches data from OpenSea and the rankings file. Subsequent runs are faster due to caching.
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">5</div>
+      <div class="step-title">Add Widget to Home Screen</div>
+    </div>
+    <p>1. Go to your iPhone <strong>Home Screen</strong><br/>
+       2. <strong>Long press</strong> on an empty area until icons jiggle<br/>
+       3. Tap <strong>+</strong> in the top left corner<br/>
+       4. Search for <strong>"Scriptable"</strong><br/>
+       5. Choose your preferred size: <strong>Small, Medium, or Large</strong><br/>
+       6. Tap <strong>"Add Widget"</strong><br/>
+       7. Tap the widget → select <strong>BonsaiWidget</strong> as the script<br/>
+       8. Tap <strong>Done</strong></p>
+
+    <div class="tip">
+      <strong>Pro tip:</strong> Choose <strong>Medium (2×1)</strong> for the best view — it shows the bonsai image plus name, rank and rarity info.
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">6</div>
+      <div class="step-title">Pick Your Favourite Bonsai per Widget</div>
+    </div>
+    <p>Each widget can show any bonsai you own — your favourite, your rarest, or any specific one. Just set the <strong>Token ID</strong> as the widget parameter.</p>
+    <p>1. Long press the widget on your home screen → <strong>Edit Widget</strong><br/>
+       2. In the <strong>Parameter</strong> field, type the <strong>Token ID</strong> of the bonsai you want<br/>
+       3. Tap outside to save — the widget updates immediately</p>
+
+    <div class="code-block">
+      <pre>Parameter: 1024  → shows Bonsai #1024
+Parameter: 892   → shows Bonsai #892
+Parameter: 3160  → shows Yuki (Named, #1)
+Parameter: (empty) → shows your rarest bonsai automatically</pre>
+    </div>
+
+    <div class="tip">
+      <strong>How to find a Token ID:</strong> Go to the <a href="index.html" style="color:var(--moss-l)">Rarity Checker</a> → Holder Garden → enter your address → tap any bonsai → the Token ID is shown under the name.
+    </div>
+
+    <div class="note">
+      <strong>The widget verifies ownership.</strong> If you enter a Token ID you don't own, the widget will show an error. You can only display bonsais in your wallet.
+    </div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">7</div>
+      <div class="step-title">Auto-Update Settings</div>
+    </div>
+    <p>iOS widgets update automatically but you can influence the frequency:</p>
+    <p>— <strong>Scriptable</strong> refreshes widgets every <strong>15-60 minutes</strong> depending on iOS<br/>
+       — Your bonsai's growth (Age trait) updates on-chain monthly<br/>
+       — New listings and prices update whenever the widget refreshes<br/>
+       — Tapping the widget opens the <strong>Rarity Checker</strong> website</p>
+    <div class="note">
+      <strong>Note:</strong> iOS controls widget refresh frequency automatically based on battery and usage patterns. You cannot force a specific interval, but Scriptable is generally refreshed every 15-30 minutes when your phone is in use.
+    </div>
+  </div>
+
+  <hr class="section-divider"/>
+
+  <!-- FAQ -->
+  <div class="faq">
+    <h2>Frequently asked <em>questions</em></h2>
+
+    <div class="faq-item">
+      <div class="faq-q">Why does the widget show "No bonsai found"?</div>
+      <div class="faq-a">Make sure the Ethereum address in the script (line 11) is correct and that wallet actually holds OnChain Bonsai NFTs. Double-check by entering the address in the <a href="index.html" style="color:var(--moss-l)">Rarity Checker</a>.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Why does the rank say "#9999 / 3200"?</div>
+      <div class="faq-a">The <strong>rankings.json</strong> file hasn't been generated yet, or that bonsai wasn't found in it. Visit the <a href="index.html#global" style="color:var(--moss-l)">Global Ranking tab</a> and generate it first.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Can I use this for someone else's wallet?</div>
+      <div class="faq-a">Yes! Just replace the ETH_ADDRESS in the script with any Ethereum address that holds bonsais. Great for keeping an eye on whale wallets.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Will the widget update when my bonsai grows older?</div>
+      <div class="faq-a">Yes. The Age trait updates on-chain over time, and the widget fetches fresh data on every refresh. You'll see the visual change reflected automatically.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Is my wallet address safe?</div>
+      <div class="faq-a">Your address is only used to read public data from OpenSea's API — it's a read-only operation. No private keys, no signing, no transactions. It's as safe as looking up an address on Etherscan.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">The rarity rank is different from OpenSea. Why?</div>
+      <div class="faq-a">This widget uses <strong>corrected rarity</strong> — Age and Stage are excluded because they change over time and shouldn't define permanent rarity. OpenSea includes them, which inflates or deflates ranks unfairly. Our √(1/p) method gives a truer picture.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Can I use this on Android?</div>
+      <div class="faq-a">Scriptable is iOS only. On Android, you can use <strong>KWGT</strong> or <strong>Tasker</strong> with a similar JavaScript approach, but setup is more complex. The <a href="bonsai-wallpaper.html" style="color:var(--moss-l)">Live Garden page</a> works on any device's browser.</div>
+    </div>
+  </div>
+
+  <hr class="section-divider"/>
+
+  <div style="text-align:center;padding:20px 0">
+    <p style="font-size:15px;color:var(--stone);font-style:italic;margin-bottom:16px">Built with care for the OnChain Bonsai community.</p>
+    <a href="index.html" style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--moss-l);text-decoration:none;border:1px solid var(--moss);border-radius:2px;padding:10px 20px">← Back to Rarity Checker</a>
+  </div>
+</main>
+
+<script>
+function copyAddr() {
+  navigator.clipboard.writeText('const ETH_ADDRESS = "0xYOUR_ADDRESS_HERE";');
+  const btn = document.querySelector('.copy-btn');
+  btn.textContent = "Copied!";
+  setTimeout(() => btn.textContent = "Copy address line", 2000);
+}
+</script>
+</body>
+</html>
