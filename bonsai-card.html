@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>盆栽 · Trading Card</title>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:#06080a; --paper:#e8e0d0; --moss:#3d5a3e; --moss-l:#5a8c5b;
+      --stone:#7a7870; --gold:#c9a84c; --gold-l:#e8c97a;
+      --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--bg); color:var(--paper); font-family:'EB Garamond',serif; min-height:100vh; }
+
+    header {
+      position:sticky; top:0; z-index:50;
+      padding:13px 20px; background:rgba(6,8,10,0.96); backdrop-filter:blur(20px);
+      border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .h-left { display:flex; align-items:center; gap:12px; }
+    .h-kanji { font-size:18px; color:var(--moss-l); }
+    .h-title { font-size:15px; letter-spacing:0.03em; }
+    .h-title em { font-style:italic; color:var(--moss-l); }
+    .h-back { font-family:'Space Mono',monospace; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--stone); text-decoration:none; border:1px solid var(--border2); border-radius:2px; padding:5px 10px; }
+
+    main { max-width:600px; margin:0 auto; padding:40px 20px 80px; }
+
+    .hero { text-align:center; padding:20px 0 40px; border-bottom:1px solid var(--border); margin-bottom:36px; }
+    .hero-icon { font-size:52px; display:block; margin-bottom:14px; }
+    .hero h1 { font-size:28px; font-weight:400; margin-bottom:6px; }
+    .hero h1 em { font-style:italic; color:var(--gold); }
+    .hero p { font-size:15px; color:var(--stone); font-style:italic; line-height:1.7; margin-bottom:28px; }
+
+    .search-row { display:flex; gap:8px; max-width:420px; margin:0 auto; }
+    .search-row input {
+      flex:1; background:rgba(255,255,255,0.04); border:1px solid var(--border2);
+      border-radius:4px; padding:13px 16px; color:var(--paper);
+      font-size:13px; font-family:'Space Mono',monospace; outline:none;
+      transition:border-color 0.2s;
+    }
+    .search-row input:focus { border-color:var(--moss-l); }
+    .search-row input::placeholder { font-family:'EB Garamond',serif; font-size:15px; font-style:italic; color:var(--stone); letter-spacing:0; }
+    .search-row button {
+      background:var(--moss); color:var(--paper); border:none; border-radius:4px;
+      padding:0 18px; font-family:'Space Mono',monospace; font-size:9px;
+      letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; transition:background 0.2s; white-space:nowrap;
+    }
+    .search-row button:hover { background:var(--moss-l); }
+    .search-row button:disabled { background:#1a1a14; color:var(--stone); cursor:not-allowed; }
+
+    .status { text-align:center; padding:16px; font-style:italic; color:var(--stone); font-size:15px; }
+    .status.err { font-style:normal; font-family:'Space Mono',monospace; font-size:11px; color:#c97a7a; }
+
+    /* ── CARD ── */
+    #cardWrap { display:none; }
+
+    .card-outer {
+      max-width:360px; margin:0 auto 24px;
+      /* Card shine effect */
+      position:relative;
+      filter:drop-shadow(0 20px 60px rgba(0,0,0,0.8));
+    }
+
+    /* Tier-specific card styles */
+    .card {
+      width:100%; border-radius:16px; overflow:hidden;
+      position:relative; aspect-ratio:0.68;
+      font-family:'EB Garamond',serif;
+    }
+
+    /* Legendary: gold foil */
+    .card.legendary {
+      background:linear-gradient(145deg, #1a1200, #2a1e00, #1a1200);
+      border:2px solid var(--gold);
+      box-shadow:0 0 30px rgba(201,168,76,0.4), inset 0 0 60px rgba(201,168,76,0.05);
+    }
+    /* Epic: purple */
+    .card.epic {
+      background:linear-gradient(145deg, #0f0a1a, #1a1228, #0f0a1a);
+      border:2px solid #9b72cf;
+      box-shadow:0 0 30px rgba(155,114,207,0.3), inset 0 0 60px rgba(155,114,207,0.05);
+    }
+    /* Rare: blue */
+    .card.rare {
+      background:linear-gradient(145deg, #080f1a, #0f1828, #080f1a);
+      border:2px solid #4a90d9;
+      box-shadow:0 0 20px rgba(74,144,217,0.25), inset 0 0 60px rgba(74,144,217,0.04);
+    }
+    /* Uncommon: green */
+    .card.uncommon {
+      background:linear-gradient(145deg, #080f09, #0f1a10, #080f09);
+      border:2px solid #5a9e6a;
+      box-shadow:0 0 20px rgba(90,158,106,0.2);
+    }
+    /* Common: stone */
+    .card.common {
+      background:linear-gradient(145deg, #0d0d0a, #141410, #0d0d0a);
+      border:2px solid rgba(122,120,104,0.4);
+    }
+
+    /* Holographic shimmer overlay for legendary/epic */
+    .card.legendary::before, .card.epic::before {
+      content:'';
+      position:absolute; inset:0; z-index:1;
+      background:linear-gradient(135deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.03) 30%,
+        rgba(255,255,255,0.06) 50%,
+        rgba(255,255,255,0.03) 70%,
+        rgba(255,255,255,0) 100%
+      );
+      pointer-events:none;
+    }
+
+    /* Card header */
+    .card-header {
+      position:relative; z-index:2;
+      padding:14px 16px 10px;
+      display:flex; align-items:flex-start; justify-content:space-between;
+    }
+    .card-name { font-size:17px; font-weight:600; color:#fff; line-height:1.2; }
+    .card-tier {
+      font-family:'Space Mono',monospace; font-size:8px; letter-spacing:0.12em;
+      text-transform:uppercase; padding:3px 8px; border-radius:3px;
+      white-space:nowrap; margin-top:2px;
+    }
+    .legendary .card-tier { background:rgba(201,168,76,0.15); color:var(--gold); border:1px solid rgba(201,168,76,0.3); }
+    .epic .card-tier      { background:rgba(155,114,207,0.15); color:#9b72cf;   border:1px solid rgba(155,114,207,0.3); }
+    .rare .card-tier      { background:rgba(74,144,217,0.15);  color:#4a90d9;   border:1px solid rgba(74,144,217,0.3);  }
+    .uncommon .card-tier  { background:rgba(90,158,106,0.12);  color:#5a9e6a;   border:1px solid rgba(90,158,106,0.25); }
+    .common .card-tier    { background:rgba(122,120,104,0.1);  color:#7a7868;   border:1px solid rgba(122,120,104,0.2); }
+
+    /* NFT image area */
+    .card-img-wrap {
+      position:relative; z-index:2;
+      margin:0 12px;
+      border-radius:8px; overflow:hidden;
+      aspect-ratio:1;
+      background:#030504;
+    }
+    .legendary .card-img-wrap { border:1px solid rgba(201,168,76,0.3); box-shadow:0 0 20px rgba(201,168,76,0.15); }
+    .epic .card-img-wrap      { border:1px solid rgba(155,114,207,0.25); }
+    .rare .card-img-wrap      { border:1px solid rgba(74,144,217,0.2); }
+    .uncommon .card-img-wrap  { border:1px solid rgba(90,158,106,0.2); }
+    .common .card-img-wrap    { border:1px solid rgba(255,255,255,0.08); }
+
+    .card-img-wrap svg, .card-img-wrap img {
+      width:100%!important; height:100%!important; display:block;
+      object-fit:cover;
+    }
+
+    /* Score + rank bar */
+    .card-score-bar {
+      position:relative; z-index:2;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px 16px 6px;
+    }
+    .card-rank { font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.05em; }
+    .legendary .card-rank { color:var(--gold); }
+    .epic .card-rank      { color:#9b72cf; }
+    .rare .card-rank      { color:#4a90d9; }
+    .uncommon .card-rank  { color:#5a9e6a; }
+    .common .card-rank    { color:#7a7868; }
+
+    .card-score { font-family:'Space Mono',monospace; font-size:9px; color:rgba(255,255,255,0.3); }
+
+    /* Divider line */
+    .card-divider {
+      position:relative; z-index:2;
+      margin:0 12px;
+      height:1px;
+    }
+    .legendary .card-divider { background:linear-gradient(90deg,transparent,rgba(201,168,76,0.4),transparent); }
+    .epic .card-divider      { background:linear-gradient(90deg,transparent,rgba(155,114,207,0.3),transparent); }
+    .rare .card-divider      { background:linear-gradient(90deg,transparent,rgba(74,144,217,0.25),transparent); }
+    .uncommon .card-divider  { background:linear-gradient(90deg,transparent,rgba(90,158,106,0.2),transparent); }
+    .common .card-divider    { background:rgba(255,255,255,0.06); }
+
+    /* Traits section */
+    .card-traits {
+      position:relative; z-index:2;
+      padding:8px 14px 12px;
+      display:grid; grid-template-columns:1fr 1fr;
+      gap:4px;
+    }
+    .card-trait {
+      padding:4px 8px; border-radius:3px;
+      background:rgba(255,255,255,0.03);
+    }
+    .card-trait-type {
+      font-family:'Space Mono',monospace; font-size:7px;
+      letter-spacing:0.1em; text-transform:uppercase;
+      margin-bottom:1px;
+    }
+    .card-trait-value { font-size:11px; color:rgba(255,255,255,0.85); line-height:1.2; }
+    .card-trait-pct {
+      font-family:'Space Mono',monospace; font-size:7px;
+      margin-top:1px;
+    }
+
+    /* Footer */
+    .card-footer {
+      position:relative; z-index:2;
+      padding:6px 16px 14px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .card-footer-token { font-family:'Space Mono',monospace; font-size:8px; color:rgba(255,255,255,0.2); letter-spacing:0.05em; }
+    .card-footer-kanji { font-size:14px; color:rgba(255,255,255,0.15); }
+
+    /* Download button */
+    .dl-btn {
+      display:block; width:100%; max-width:360px; margin:0 auto;
+      background:var(--moss); color:var(--paper); border:none; border-radius:4px;
+      padding:14px; font-family:'Space Mono',monospace; font-size:10px;
+      letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;
+      transition:background 0.2s; text-align:center;
+    }
+    .dl-btn:hover { background:var(--moss-l); }
+
+    /* Trait counts lookup */
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <span class="h-kanji">盆</span>
+    <span class="h-title">On-Chain Bonsai · <em>Trading Card</em></span>
+  </div>
+  <a href="index.html" class="h-back">← Rarity</a>
+</header>
+
+<main>
+  <div class="hero">
+    <span class="hero-icon">🎴</span>
+    <h1>Your bonsai,<br/><em>as a trading card.</em></h1>
+    <p>Enter any token ID to generate a unique card.<br/>Download and share it anywhere.</p>
+    <div class="search-row">
+      <input id="tokenInput" type="number" placeholder="Token ID (e.g. 1241)" min="1" max="3333"/>
+      <button id="goBtn" onclick="generate()">Generate</button>
+    </div>
+  </div>
+
+  <div id="statusArea"></div>
+
+  <div id="cardWrap">
+    <div class="card-outer">
+      <div class="card" id="theCard">
+        <div class="card-header">
+          <div class="card-name" id="cName"></div>
+          <div class="card-tier" id="cTier"></div>
+        </div>
+        <div class="card-img-wrap" id="cImg"></div>
+        <div class="card-score-bar">
+          <div class="card-rank" id="cRank"></div>
+          <div class="card-score" id="cScore"></div>
+        </div>
+        <div class="card-divider"></div>
+        <div class="card-traits" id="cTraits"></div>
+        <div class="card-divider"></div>
+        <div class="card-footer">
+          <div class="card-footer-token" id="cToken"></div>
+          <div class="card-footer-kanji">盆栽</div>
+        </div>
+      </div>
+    </div>
+    <button class="dl-btn" onclick="downloadCard()">⬇ Download Card</button>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const KEY      = "b7db8fa50a88f6083c38c478c5c3d58d";
+const CONTRACT = "0xd1bd61c856c1aee57f0439bc018a2b712ce89580";
+const SLUG     = "onchainbonsai";
+const SUPPLY   = 3192;
+const EXCL     = ["age (months)", "stage"];
+
+const RPCS = [
+  "https://ethereum.publicnode.com",
+  "https://eth.drpc.org",
+  "https://rpc.payload.de",
+  "https://1rpc.io/eth",
+];
+
+let traitCounts = null;
+let rankMap = null;
+
+function setStatus(msg, err=false) {
+  document.getElementById("statusArea").innerHTML = msg
+    ? `<div class="status${err?" err":""}">${msg}</div>` : "";
+}
+
+// ── Tier ────────────────────────────────────────────────────────
+function getTier(score, isNamed) {
+  if (isNamed) return { name:"Legendary", cls:"legendary", color:"#c9a84c" };
+  if (score >= 35) return { name:"Legendary", cls:"legendary", color:"#c9a84c" };
+  if (score >= 28) return { name:"Epic",      cls:"epic",      color:"#9b72cf" };
+  if (score >= 22) return { name:"Rare",      cls:"rare",      color:"#4a90d9" };
+  if (score >= 16) return { name:"Uncommon",  cls:"uncommon",  color:"#5a9e6a" };
+  return                  { name:"Common",    cls:"common",    color:"#7a7868" };
+}
+
+function getTraitTierColor(pct) {
+  if (pct <= 1)  return "#c9a84c";
+  if (pct <= 5)  return "#9b72cf";
+  if (pct <= 10) return "#4a90d9";
+  if (pct <= 20) return "#5a9e6a";
+  return "#4a4a40";
+}
+
+// ── Data fetching ───────────────────────────────────────────────
+async function fetchTraitCounts() {
+  if (traitCounts) return traitCounts;
+  const res = await fetch(`https://api.opensea.io/api/v2/traits/${SLUG}`, {
+    headers: { "x-api-key": KEY }
+  });
+  const data = await res.json();
+  traitCounts = data.counts || {};
+  return traitCounts;
+}
+
+async function fetchRankings() {
+  if (rankMap) return rankMap;
+  try {
+    const res = await fetch("rankings.json");
+    if (!res.ok) return {};
+    const data = await res.json();
+    rankMap = {};
+    for (const r of (data.rankings||[])) rankMap[String(r.id)] = { rank:r.rank, score:r.score };
+    return rankMap;
+  } catch(e) { return {}; }
+}
+
+async function fetchNFT(tokenId) {
+  const res = await fetch(
+    `https://api.opensea.io/api/v2/chain/ethereum/contract/${CONTRACT}/nfts/${tokenId}`,
+    { headers: { "x-api-key": KEY } }
+  );
+  if (!res.ok) throw new Error(`Bonsai #${tokenId} not found`);
+  return (await res.json()).nft;
+}
+
+// ── Live SVG from blockchain ────────────────────────────────────
+function hexToSVG(hex) {
+  if (!hex || hex==="0x") return null;
+  const raw = hex.slice(2);
+  if (raw.length < 128) return null;
+  const len = parseInt(raw.slice(64,128),16);
+  const strHex = raw.slice(128,128+len*2);
+  let str="";
+  for(let i=0;i<strHex.length;i+=2)
+    str+=String.fromCharCode(parseInt(strHex.slice(i,i+2),16));
+  return str;
+}
+
+async function fetchLiveSVG(tokenId) {
+  const sel = "0xc7750576"; // renderSVG(uint256)
+  const pad = BigInt(tokenId).toString(16).padStart(64,"0");
+  for (const rpc of RPCS) {
+    try {
+      const ctrl = new AbortController();
+      setTimeout(()=>ctrl.abort(),12000);
+      const res = await fetch(rpc,{
+        method:"POST", signal:ctrl.signal,
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({jsonrpc:"2.0",id:1,method:"eth_call",params:[{to:CONTRACT,data:sel+pad},"latest"]})
+      });
+      const d = await res.json();
+      if (d.result && d.result!=="0x") {
+        const uri = hexToSVG(d.result);
+        if (uri) {
+          // Parse JSON metadata to get image
+          try {
+            let meta;
+            if (uri.startsWith("data:application/json;base64,"))
+              meta = JSON.parse(atob(uri.replace("data:application/json;base64,","")));
+            else if (uri.startsWith("data:application/json,"))
+              meta = JSON.parse(decodeURIComponent(uri.replace("data:application/json,","")));
+            else if (uri.startsWith("{")) meta = JSON.parse(uri);
+            if (meta?.image) return meta.image;
+          } catch(e) {}
+          return uri;
+        }
+      }
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+// ── Rarity score ────────────────────────────────────────────────
+function calcScore(traits, counts) {
+  if (!traits||!counts) return 0;
+  if (traits.some(t=>t.trait_type==="Name")) return 999;
+  let s=0;
+  for(const t of traits){
+    if(EXCL.includes(t.trait_type?.toLowerCase())) continue;
+    const map=counts[t.trait_type];
+    if(!map) continue;
+    const c=map[t.value]||0;
+    if(c>0) s+=Math.sqrt(SUPPLY/c);
+  }
+  return s;
+}
+
+// ── SVG into element ────────────────────────────────────────────
+function injectSVG(container, imageData) {
+  if (!imageData) return;
+  if (imageData.startsWith("<svg")||imageData.includes("<svg")) {
+    container.innerHTML = imageData;
+    const svg=container.querySelector("svg");
+    if(svg){svg.setAttribute("width","100%");svg.setAttribute("height","100%");svg.style.cssText="width:100%!important;height:100%!important;display:block";}
+  } else if(imageData.startsWith("data:image/svg+xml;base64,")) {
+    try{
+      const dec=atob(imageData.replace("data:image/svg+xml;base64,",""));
+      container.innerHTML=dec;
+      const svg=container.querySelector("svg");
+      if(svg){svg.setAttribute("width","100%");svg.setAttribute("height","100%");svg.style.cssText="width:100%!important;height:100%!important;display:block";}
+    }catch(e){
+      const img=document.createElement("img");img.src=imageData;img.style.cssText="width:100%;height:100%;object-fit:cover;display:block";container.appendChild(img);
+    }
+  } else {
+    const img=document.createElement("img");img.src=imageData;img.style.cssText="width:100%;height:100%;object-fit:cover;display:block";container.appendChild(img);
+  }
+}
+
+// ── Generate card ───────────────────────────────────────────────
+async function generate() {
+  const tokenId = document.getElementById("tokenInput").value.trim();
+  if (!tokenId||tokenId<1||tokenId>3333) { setStatus("Enter a valid token ID (1–3333)",true); return; }
+
+  document.getElementById("goBtn").disabled=true;
+  document.getElementById("cardWrap").style.display="none";
+  setStatus("Fetching bonsai data…");
+
+  try {
+    const [nft, counts, rankings] = await Promise.all([
+      fetchNFT(tokenId),
+      fetchTraitCounts(),
+      fetchRankings()
+    ]);
+
+    setStatus("Loading live image from blockchain…");
+    const imgData = await fetchLiveSVG(tokenId)
+      || nft.display_image_url || nft.image_url;
+
+    const traits = nft.traits||[];
+    const isNamed = traits.some(t=>t.trait_type==="Name");
+    const nameTrait = traits.find(t=>t.trait_type==="Name");
+    const incl = traits.filter(t=>!EXCL.includes(t.trait_type?.toLowerCase()));
+    const excl = traits.filter(t=>EXCL.includes(t.trait_type?.toLowerCase()));
+
+    const rankInfo = rankings[String(tokenId)];
+    const score = rankInfo?.score || calcScore(traits, counts);
+    const rank  = rankInfo?.rank  || null;
+    const tier  = getTier(score, isNamed);
+
+    // ── Build card ──
+    const card = document.getElementById("theCard");
+    card.className = `card ${tier.cls}`;
+
+    // Name
+    document.getElementById("cName").textContent = nft.name||`Bonsai #${tokenId}`;
+
+    // Tier badge
+    document.getElementById("cTier").textContent = tier.name;
+
+    // Image
+    const imgWrap = document.getElementById("cImg");
+    imgWrap.innerHTML="";
+    injectSVG(imgWrap, imgData);
+
+    // Rank + score
+    document.getElementById("cRank").textContent =
+      isNamed ? "✦ NAMED · #1 / 3200" :
+      rank ? `#${rank} / 3200` : `score ${score.toFixed(1)}`;
+    document.getElementById("cScore").textContent =
+      isNamed ? "1 of 1 · Unique" : `score ${score.toFixed(2)}`;
+
+    // Traits
+    const traitsEl = document.getElementById("cTraits");
+    traitsEl.innerHTML="";
+
+    // Sort by rarity (rarest first)
+    const scored = incl.map(t => {
+      const map = counts[t.trait_type];
+      const c = map?.[t.value]||0;
+      const pct = c>0 ? Math.round(c/SUPPLY*1000)/10 : null;
+      return { ...t, c, pct };
+    }).sort((a,b)=>(a.pct||100)-(b.pct||100));
+
+    for (const t of scored.slice(0,8)) {
+      const color = t.pct!==null ? getTraitTierColor(t.pct) : "#4a4a40";
+      const div = document.createElement("div");
+      div.className="card-trait";
+      div.style.borderLeft=`2px solid ${color}33`;
+      div.innerHTML=`
+        <div class="card-trait-type" style="color:${color}">${t.trait_type}</div>
+        <div class="card-trait-value">${t.value}</div>
+        ${t.pct!==null?`<div class="card-trait-pct" style="color:${color}">${t.pct}%</div>`:""}`;
+      traitsEl.appendChild(div);
+    }
+
+    // Footer
+    document.getElementById("cToken").textContent =
+      `TOKEN #${tokenId} · ON-CHAIN BONSAI`;
+
+    setStatus("");
+    document.getElementById("cardWrap").style.display="block";
+
+  } catch(e) {
+    setStatus(e.message,true);
+  } finally {
+    document.getElementById("goBtn").disabled=false;
+  }
+}
+
+// ── Download ────────────────────────────────────────────────────
+async function downloadCard() {
+  const card = document.getElementById("theCard");
+  const tokenId = document.getElementById("tokenInput").value;
+  try {
+    const canvas = await html2canvas(card, {
+      scale:3, useCORS:true, allowTaint:true,
+      backgroundColor:null,
+      logging:false
+    });
+    const link = document.createElement("a");
+    link.download = `bonsai-${tokenId}-card.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  } catch(e) {
+    alert("Download failed: "+e.message);
+  }
+}
+
+document.getElementById("tokenInput").addEventListener("keydown",e=>{
+  if(e.key==="Enter") generate();
+});
+</script>
+</body>
+</html>
